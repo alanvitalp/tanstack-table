@@ -8,7 +8,9 @@ import {
   getSortedRowModel,
   flexRender,
   ColumnDef,
-  Row,
+  VisibilityState,
+  ColumnFiltersState,
+  FilterFn,
 } from '@tanstack/react-table';
 import {
   Paper,
@@ -17,164 +19,185 @@ import {
   TableCell,
   TableHead,
   TableRow,
-  TextField,
+  Box,
   Button,
-  Pagination,
+  CircularProgress,
 } from '@mui/material';
 
-type TableProps<TData extends object> = {
+import { TableFilters } from './components/TableFilters';
+import { ColumnVisibility } from './components/ColumnVisibility';
+import { TablePagination } from './components/TablePagination';
+import { TableError } from './components/TableError';
+import { TableLoading } from './components/TableLoading';
+
+export interface TableProps<TData extends object> {
   data: TData[];
   columns: ColumnDef<TData>[];
   refreshFn?: () => Promise<void>;
   searchableColumns?: string[];
   initialPageSize?: number;
   pageSizeOptions?: number[];
-};
+  columnFilters?: Array<{
+    column: keyof TData;
+    options: string[];
+    label: string;
+  }>;
+}
 
-type FilterFn = <TData extends object>(
-  row: Row<TData>,
-  columnId: string,
-  filterValue: string
-) => boolean;
-
-export default function Table<TData extends object>({ 
+export function DataTable<TData extends object>({ 
   data, 
   columns, 
   refreshFn, 
   searchableColumns = [],
   initialPageSize = 10,
-  pageSizeOptions = [5, 10, 25, 50]
+  pageSizeOptions = [5, 10, 25, 50],
+  columnFilters = []
 }: TableProps<TData>) {
   const [globalFilter, setGlobalFilter] = useState('');
-  const [pageSize, setPageSize] = useState(initialPageSize);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [columnFiltersState, setColumnFiltersState] = useState<ColumnFiltersState>([]);
+  const [{ pageIndex, pageSize }, setPagination] = useState({
+    pageIndex: 0,
+    pageSize: initialPageSize,
+  });
   const [isLoading, setIsLoading] = useState(false);
-  
-  const customGlobalFilter = useCallback<FilterFn>((row, columnId: string, filterValue: string) => {
-    if (searchableColumns.length === 0) {
-      return row.getValue(columnId)?.toString().toLowerCase().includes(filterValue.toLowerCase()) ?? false;
+  const [error, setError] = useState<string | null>(null);
+
+  const pagination = useMemo(
+    () => ({
+      pageIndex,
+      pageSize,
+    }),
+    [pageIndex, pageSize]
+  );
+
+  const globalFilterFn: FilterFn<TData> = useCallback(
+    (row, _, value) => {
+      if (!value || !searchableColumns.length) return true;
+      
+      return searchableColumns.some(columnId => {
+        const cellValue = row.getValue(columnId);
+        return String(cellValue)
+          .toLowerCase()
+          .includes(String(value).toLowerCase());
+      });
+    },
+    [searchableColumns]
+  );
+
+  const handleRefresh = useCallback(async () => {
+    if (!refreshFn) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      await refreshFn();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to refresh data');
+    } finally {
+      setIsLoading(false);
     }
-
-    const matchingColumns = searchableColumns
-      .map(colId => row.getAllCells().find((cell) => cell.column.id === colId))
-      .filter(cell => cell !== undefined);
-
-    return matchingColumns.some(cell => 
-      cell?.getValue<any>()?.toString().toLowerCase().includes(filterValue.toLowerCase())
-    );
-  }, [searchableColumns]);
+  }, [refreshFn]);
 
   const table = useReactTable({
     data,
     columns,
     state: {
       globalFilter,
-      pagination: {
-        pageIndex: 0,
-        pageSize: pageSize,
-      }
+      columnVisibility,
+      columnFilters: columnFiltersState,
+      pagination,
     },
+    onColumnFiltersChange: setColumnFiltersState,
+    onColumnVisibilityChange: setColumnVisibility,
     onGlobalFilterChange: setGlobalFilter,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    filterFns: {
-      customGlobalFilter,
-    },
-    globalFilterFn: customGlobalFilter,
+    globalFilterFn,
+    enableColumnFilters: true,
+    enableGlobalFilter: true,
+    enableSorting: true,
   });
 
-  const handleSearch = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilter(e.target.value);
-  }, []);
-
-  const handlePageChange = useCallback((_: React.ChangeEvent<unknown>, page: number) => {
-    table.setPageIndex(page - 1);
-  }, [table]);
-
-  const handleRefresh = async () => {
-    if (refreshFn) {
-      setIsLoading(true);
-      try {
-        await refreshFn();
-      } finally {
-        setIsLoading(false);
-      }
-    }
-  };
-
-  const PageSizeSelector = () => (
-    <select
-      value={pageSize}
-      onChange={e => setPageSize(Number(e.target.value))}
-      style={{ marginRight: '1rem' }}
-    >
-      {pageSizeOptions.map(size => (
-        <option key={size} value={size}>
-          Show {size}
-        </option>
-      ))}
-    </select>
-  );
-
-  // Add error boundary
   if (!data || !columns) {
-    return <div>Unable to display table: Missing required props</div>;
+    return <TableError message="Missing required props" />;
   }
 
   return (
     <Paper>
-      <div style={{ padding: '16px' }}>
-        <TextField
-          label="Search"
-          variant="outlined"
-          value={globalFilter}
-          onChange={handleSearch}
-          style={{ marginBottom: '16px' }}
+      <Box sx={{ p: 2, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+        <TableFilters
+          globalFilter={globalFilter}
+          onGlobalFilterChange={setGlobalFilter}
+          columnFilters={columnFilters}
+          table={table}
           disabled={isLoading}
         />
-        <Button 
-          variant="contained" 
-          onClick={handleRefresh} 
-          style={{ marginLeft: '8px' }}
+        
+        {refreshFn && (
+          <Button 
+            variant="contained" 
+            onClick={handleRefresh}
+            disabled={isLoading}
+            startIcon={isLoading ? <CircularProgress size={20} /> : null}
+          >
+            {isLoading ? 'Refreshing...' : 'Refresh'}
+          </Button>
+        )}
+        
+        <ColumnVisibility 
+          table={table} 
+          columns={columns} 
           disabled={isLoading}
-        >
-          {isLoading ? 'Refreshing...' : 'Refresh'}
-        </Button>
-      </div>
-      <MuiTable>
-        <TableHead>
-          {table.getHeaderGroups().map(headerGroup => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map(header => (
-                <TableCell key={header.id}>
-                  {flexRender(header.column.columnDef.header, header.getContext())}
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </TableHead>
-        <TableBody>
-          {table.getRowModel().rows.map(row => (
-            <TableRow key={row.id}>
-              {row.getVisibleCells().map(cell => (
-                <TableCell key={cell.id}>
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </TableBody>
-      </MuiTable>
-      <div style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <PageSizeSelector />
-        <Pagination
-          count={table.getPageCount()}
-          page={table.getState().pagination.pageIndex + 1}
-          onChange={handlePageChange}
-          color="primary"
         />
-      </div>
+      </Box>
+
+      {error && (
+        <Box sx={{ p: 2, bgcolor: 'error.light', color: 'error.contrastText' }}>
+          {error}
+        </Box>
+      )}
+
+      {isLoading ? (
+        <TableLoading />
+      ) : (
+        <>
+          <MuiTable>
+            <TableHead>
+              {table.getHeaderGroups().map(headerGroup => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map(header => (
+                    <TableCell key={header.id}>
+                      {flexRender(header.column.columnDef.header, header.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHead>
+            <TableBody>
+              {table.getRowModel().rows.map(row => (
+                <TableRow key={row.id}>
+                  {row.getVisibleCells().map(cell => (
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </MuiTable>
+
+          <TablePagination 
+            table={table}
+            pageSizeOptions={pageSizeOptions}
+            disabled={isLoading}
+          />
+        </>
+      )}
     </Paper>
   );
 }
