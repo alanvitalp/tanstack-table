@@ -22,6 +22,7 @@ import {
   Box,
   Button,
   CircularProgress,
+  TableContainer,
 } from '@mui/material';
 
 import { TableFilters } from './components/TableFilters';
@@ -42,6 +43,10 @@ export interface TableProps<TData extends object> {
     options: string[];
     label: string;
   }>;
+  onAddResource?: {
+    label: string;
+    onClick: () => void;
+  };
 }
 
 export function DataTable<TData extends object>({ 
@@ -51,7 +56,8 @@ export function DataTable<TData extends object>({
   searchableColumns = [],
   initialPageSize = 10,
   pageSizeOptions = [5, 10, 25, 50],
-  columnFilters = []
+  columnFilters = [],
+  onAddResource
 }: TableProps<TData>) {
   const [globalFilter, setGlobalFilter] = useState('');
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -130,6 +136,15 @@ export function DataTable<TData extends object>({
   return (
     <Paper>
       <Box sx={{ p: 2, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+        {onAddResource && (
+          <Button
+            variant="contained"
+            onClick={onAddResource.onClick}
+            disabled={isLoading}
+          >
+            Add {onAddResource.label}
+          </Button>
+        )}
         <TableFilters
           globalFilter={globalFilter}
           onGlobalFilterChange={setGlobalFilter}
@@ -166,30 +181,40 @@ export function DataTable<TData extends object>({
         <TableLoading />
       ) : (
         <>
-          <MuiTable>
-            <TableHead>
-              {table.getHeaderGroups().map(headerGroup => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map(header => (
-                    <TableCell key={header.id}>
-                      {flexRender(header.column.columnDef.header, header.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHead>
-            <TableBody>
-              {table.getRowModel().rows.map(row => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map(cell => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </MuiTable>
+          <TableContainer sx={{ maxHeight: 1000 }}>
+            <MuiTable stickyHeader>
+              <TableHead>
+                {table.getHeaderGroups().map(headerGroup => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map(header => (
+                      <TableCell 
+                        key={header.id}
+                        sx={{
+                          bgcolor: 'background.paper',
+                          position: 'sticky',
+                          top: 0,
+                          zIndex: 1,
+                        }}
+                      >
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableHead>
+              <TableBody>
+                {table.getRowModel().rows.map(row => (
+                  <TableRow key={row.id}>
+                    {row.getVisibleCells().map(cell => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </MuiTable>
+          </TableContainer>
 
           <TablePagination 
             table={table}

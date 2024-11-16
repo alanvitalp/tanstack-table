@@ -11,6 +11,18 @@ interface ColumnVisibilityProps<TData extends object> {
 export function ColumnVisibility<TData extends object>({ table, columns, disabled }: ColumnVisibilityProps<TData>) {
   const visibleColumns = table.getVisibleLeafColumns().map(col => col.id);
 
+  const getColumnHeader = (column: ColumnDef<TData>) => {
+    const columnId = column.id || (column as any).accessorKey;
+    
+    if (typeof column.header === 'function') {
+      const tableColumn = table.getColumn(columnId);
+      if (!tableColumn) return columnId;
+      return column.header({ column: tableColumn, header: tableColumn.columnDef.header as any, table }) as string;
+    }
+    
+    return column.header || columnId;
+  };
+
   return (
     <FormControl sx={{ minWidth: 200 }}>
       <InputLabel>Show/Hide Columns</InputLabel>
@@ -23,8 +35,8 @@ export function ColumnVisibility<TData extends object>({ table, columns, disable
           table.setColumnVisibility(
             Object.fromEntries(
               columns.map(col => [
-                (col as any).id || (col as any).accessorKey,
-                selectedColumns.includes((col as any).id || (col as any).accessorKey)
+                col.id || (col as any).accessorKey,
+                selectedColumns.includes(col.id || (col as any).accessorKey)
               ])
             )
           );
@@ -33,19 +45,19 @@ export function ColumnVisibility<TData extends object>({ table, columns, disable
         renderValue={(selected) => 
           selected
             .map(columnId => 
-              columns.find(col => 
-                (col as any).id === columnId || (col as any).accessorKey === columnId
-              )?.header?.toString() || columnId
+              getColumnHeader(
+                columns.find(col => 
+                  col.id === columnId || (col as any).accessorKey === columnId
+                )!
+              )
             )
             .join(', ')
         }
         size="small"
       >
         {columns.map(column => {
-          const columnId = (column as any).id || (column as any).accessorKey;
-          const columnHeader = typeof column.header === 'function' 
-            ? column.header()
-            : column.header || columnId;
+          const columnId = column.id || (column as any).accessorKey;
+          const columnHeader = getColumnHeader(column);
           
           return (
             <MenuItem key={columnId} value={columnId}>
