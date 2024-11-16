@@ -39,8 +39,9 @@ export function TableFilters<TData extends object>({
 
         return (
           <FormControl key={String(filter.column)} sx={{ minWidth: 200 }}>
-            <InputLabel>{filter.label}</InputLabel>
+            <InputLabel id={`${String(filter.column)}-label`}>{filter.label}</InputLabel>
             <Select
+              labelId={`${String(filter.column)}-label`}
               multiple
               value={filterValue}
               onChange={(e) => {

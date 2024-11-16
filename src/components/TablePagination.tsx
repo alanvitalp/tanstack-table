@@ -21,15 +21,19 @@ export function TablePagination<TData>({
       alignItems: 'center'
     }}>
       <FormControl size="small">
-        <InputLabel>Rows per page</InputLabel>
+        <InputLabel id="rows-per-page-label">Rows per page</InputLabel>
         <Select
+          labelId="rows-per-page-label"
           value={table.getState().pagination.pageSize}
           onChange={e => table.setPageSize(Number(e.target.value))}
           label="Rows per page"
           disabled={disabled}
         >
           {pageSizeOptions.map(pageSize => (
-            <MenuItem key={pageSize} value={pageSize}>
+            <MenuItem 
+              key={pageSize} 
+              value={pageSize}
+            >
               {pageSize}
             </MenuItem>
           ))}
@@ -46,4 +50,4 @@ export function TablePagination<TData>({
       />
     </Box>
   );
-} 
+}

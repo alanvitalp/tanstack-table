@@ -141,6 +141,7 @@ export function DataTable<TData extends object>({
             variant="contained"
             onClick={onAddResource.onClick}
             disabled={isLoading}
+            data-testid={`add-${onAddResource.label.toLowerCase()}-button`}
           >
             Add {onAddResource.label}
           </Button>
@@ -159,6 +160,7 @@ export function DataTable<TData extends object>({
             onClick={handleRefresh}
             disabled={isLoading}
             startIcon={isLoading ? <CircularProgress size={20} /> : null}
+            data-testid="refresh-table-button"
           >
             {isLoading ? 'Refreshing...' : 'Refresh'}
           </Button>
@@ -189,6 +191,7 @@ export function DataTable<TData extends object>({
                     {headerGroup.headers.map(header => (
                       <TableCell 
                         key={header.id}
+                        data-testid={`column-header-${header.id}`}
                         sx={{
                           bgcolor: 'background.paper',
                           position: 'sticky',
@@ -204,9 +207,9 @@ export function DataTable<TData extends object>({
               </TableHead>
               <TableBody>
                 {table.getRowModel().rows.map(row => (
-                  <TableRow key={row.id}>
+                  <TableRow key={row.id} data-testid={`table-row-${row.id}`}>
                     {row.getVisibleCells().map(cell => (
-                      <TableCell key={cell.id}>
+                      <TableCell key={cell.id} data-testid={`cell-${cell.column.id}-${row.id}`}>
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>
                     ))}
